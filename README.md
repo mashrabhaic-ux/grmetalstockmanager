@@ -1,0 +1,2 @@
+# grmetalstockmanager
+metal stock manager
