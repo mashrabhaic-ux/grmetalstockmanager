@@ -37,11 +37,18 @@ def calculate_pipe_weight(outer_diameter, thickness, length, material):
     density = DENSITIES.get(material, 0.00000793)
     outer_radius = outer_diameter / 2
     inner_radius = outer_radius - thickness
-    
-    if inner_radius <= 0:
-        return 0.0
-        
+    if inner_radius <= 0: return 0.0
     volume = math.pi * ((outer_radius ** 2) - (inner_radius ** 2)) * length
+    return round(volume * density, 2)
+
+def calculate_box_weight(height, width, thickness, length, material):
+    density = DENSITIES.get(material, 0.00000793)
+    outer_area = height * width
+    inner_height = height - (2 * thickness)
+    inner_width = width - (2 * thickness)
+    if inner_height <= 0 or inner_width <= 0: return 0.0
+    inner_area = inner_height * inner_width
+    volume = (outer_area - inner_area) * length
     return round(volume * density, 2)
 
 # 3. SIDEBAR CONFIGURATION
@@ -92,7 +99,7 @@ if not df_bits.empty:
     df_bits = st.session_state.bits_inventory
 
 # 5. USER INTERFACE THREE-TAB NAVIGATION
-tab1, tab2, tab3 = st.tabs(["📋 FULL SHEETS INVENTORY", "✂️ OFF-CUT BITS DATABASE", "📐 TUBES & RODS CALCULATOR"])
+tab1, tab2, tab3 = st.tabs(["📋 FULL SHEETS INVENTORY", "✂️ OFF-CUT BITS DATABASE", "📐 STRUCTURAL PROFILE CALCULATOR"])
 
 # ==========================================
 # TAB 1: FULL SIZE SHEET INVENTORY
@@ -251,11 +258,14 @@ with tab2:
     else:
         for index, row in df_bits.iterrows():
             with st.container():
-                m1, m2, m3, m4 = st.columns([1.5, 1.5, 2.5, 1])
+                m1, m2, m3, m4 = st.columns([2, 1.5, 2.5, 1.5])
                 with m1:
                     st.markdown(f"**{row['bit_id']}** ({row['grade']})")
                     st.caption(f"🔧 {row['material']} | Tk: {row['thickness']}mm \n\n Logged: {row['date_logged']}")
-                    new_status = st.selectbox("Status", ["Available", "Reserved"], index=["Available", "Reserved"].index(row['status']), key=f"stat_{row['bit_id']}", label_visibility="collapsed")
+                    # FEATURE 3: BARCODE ID LOG PRINT LABELS
+                    st.markdown(f'''<div style="background-color:white; border:1px solid #111; padding:3px; width:fit-content; margin-top:5px;"><div style="letter-spacing:2px; background:repeating-linear-gradient(90deg, #000, #000 2px, #fff 2px, #fff 4px); width:90px; height:20px;"></div><span style="font-size:9px; color:black; font-family:monospace;">*{row['bit_id']}*</span></div>''', unsafe_allow_html=True)
+                    
+                    new_status = st.selectbox("Status", ["Available", "Reserved"], index=["Available", "Reserved"].index(row['status']), key=f"stat_{row['bit_id']}")
                     if new_status != row['status']:
                         st.session_state.bits_inventory.at[index, 'status'] = new_status
                         st.rerun()
@@ -289,43 +299,58 @@ with tab2:
                 st.markdown("<hr style='margin:0.4rem 0; opacity:0.15;'>", unsafe_allow_html=True)
 
 # ==========================================
-# TAB 3: UNIVERSAL PROFILE CALCULATOR
+# TAB 3: UNIVERSAL PROFILE CALCULATOR (Expanded)
 # ==========================================
 with tab3:
-    st.subheader("📐 Round Profiles & Hollow Sections Weight Estimation Hub")
-    st.write("Calculate weights instantly for solid round rods or hollow pipes across metal grades without logging them to tables.")
+    st.subheader("📐 Universal Section Weight Estimation Hub")
     
-    p_col1, p_col2 = st.columns(2)
+    p_col1, p_col2, p_col3 = st.columns(3)
     
     with p_col1:
-        st.markdown("### 🪵 Solid Round Bar / Rod")
+        st.markdown("### 🪵 Round Bar / Rod")
         with st.container(border=True):
             rod_mat = st.selectbox("Select Rod Metal", list(DENSITIES.keys()), key="rod_m")
-            rod_dia = st.number_input("Rod Outer Diameter (mm)", min_value=1.0, value=25.0, step=1.0)
-            rod_len = st.number_input("Rod Total Length (mm)", min_value=1.0, value=1000.0, step=100.0)
+            rod_dia = st.number_input("Outer Diameter (mm)", min_value=1.0, value=25.0, step=1.0)
+            rod_len = st.number_input("Length (mm)", min_value=1.0, value=1000.0, step=100.0, key="rod_l")
             
             calculated_rod_w = calculate_rod_weight(rod_dia, rod_len, rod_mat)
             rod_cost = round(calculated_rod_w * rates.get(rod_mat, 0.0), 2)
-            
-            st.metric("⚖️ Estimated Rod Weight", f"{calculated_rod_w} Kg")
-            st.metric("💰 Estimated Profile Cost", f"₹{rod_cost:,.2f}")
+            st.metric("⚖️ Weight", f"{calculated_rod_w} Kg")
+            st.metric("💰 Material Cost", f"₹{rod_cost:,.2f}")
             
             rod_string = f"📐 *SOLID ROUND ROD QUOTE*\n• Metal: {rod_mat}\n• Size: ⌀{rod_dia}mm x {int(rod_len)}mm\n• Weight: {calculated_rod_w} Kg\n• Value: ₹{rod_cost}"
             st.code(rod_string, language="markdown")
 
     with p_col2:
-        st.markdown("### 🫙 Hollow Cylinder / Round Pipe")
+        st.markdown("### 🫙 Round Hollow Pipe")
         with st.container(border=True):
             pipe_mat = st.selectbox("Select Pipe Metal", list(DENSITIES.keys()), key="pipe_m")
-            pipe_dia = st.number_input("Pipe Outer Diameter (OD) (mm)", min_value=1.0, value=50.0, step=1.0)
-            pipe_thick = st.number_input("Pipe Wall Thickness (mm)", min_value=0.5, value=3.0, step=0.5)
-            pipe_len = st.number_input("Pipe Total Length (mm)", min_value=1.0, value=1000.0, step=100.0)
+            pipe_dia = st.number_input("Outer Diameter (OD) (mm)", min_value=1.0, value=50.0, step=1.0)
+            pipe_thick = st.number_input("Wall Thickness (mm)", min_value=0.5, value=3.0, step=0.5, key="pipe_t")
+            pipe_len = st.number_input("Length (mm)", min_value=1.0, value=1000.0, step=100.0, key="pipe_l")
             
             calculated_pipe_w = calculate_pipe_weight(pipe_dia, pipe_thick, pipe_len, pipe_mat)
             pipe_cost = round(calculated_pipe_w * rates.get(pipe_mat, 0.0), 2)
-            
-            st.metric("⚖️ Estimated Pipe Weight", f"{calculated_pipe_w} Kg")
-            st.metric("💰 Estimated Profile Cost", f"₹{pipe_cost:,.2f}")
+            st.metric("⚖️ Weight", f"{calculated_pipe_w} Kg")
+            st.metric("💰 Material Cost", f"₹{pipe_cost:,.2f}")
             
             pipe_string = f"📐 *HOLLOW PIPE QUOTE*\n• Metal: {pipe_mat}\n• Size: OD ⌀{pipe_dia}mm x Thick {pipe_thick}mm\n• Length: {int(pipe_len)}mm\n• Weight: {calculated_pipe_w} Kg\n• Value: ₹{pipe_cost}"
             st.code(pipe_string, language="markdown")
+
+    with p_col3:
+        # FEATURE 1: SQUARE & RECTANGULAR HOLLOW CALCULATOR COLUMN
+        st.markdown("### 🔲 Square / Box Section")
+        with st.container(border=True):
+            box_mat = st.selectbox("Select Box Metal", list(DENSITIES.keys()), key="box_m")
+            box_h = st.number_input("Section Height (mm)", min_value=1.0, value=40.0, step=1.0)
+            box_w = st.number_input("Section Width (mm)", min_value=1.0, value=40.0, step=1.0)
+            box_t = st.number_input("Wall Thickness (mm)", min_value=0.5, value=2.5, step=0.5, key="box_t")
+            box_l = st.number_input("Length (mm)", min_value=1.0, value=1000.0, step=100.0, key="box_l")
+            
+            calculated_box_w = calculate_box_weight(box_h, box_w, box_t, box_l, box_mat)
+            box_cost = round(calculated_box_w * rates.get(box_mat, 0.0), 2)
+            st.metric("⚖️ Weight", f"{calculated_box_w} Kg")
+            st.metric("💰 Material Cost", f"₹{box_cost:,.2f}")
+            
+            box_string = f"📐 *BOX SECTION QUOTE*\n• Metal: {box_mat}\n• Size: {int(box_h)}x{int(box_w)}mm x Thick {box_t}mm\n• Length: {int(box_l)}mm\n• Weight: {calculated_box_w} Kg\n• Value: ₹{box_cost}"
+            st.code(box_string, language="markdown")
