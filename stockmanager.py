@@ -4,8 +4,8 @@ import datetime
 import math
 
 # 1. APPLICATION SETUP
-st.set_page_config(page_title="Smart Metal Hub", page_icon="⚙️", layout="wide")
-st.title("🏢 SMART METAL HUB — Warehouse Management System")
+st.set_page_config(page_title="Smart Metal Hub Pro", page_icon="⚙️", layout="wide")
+st.title("🏢 SMART METAL HUB PRO — Enterprise Warehouse & Estimator Suite")
 
 st.markdown(
     """
@@ -78,12 +78,6 @@ if 'bits_inventory' not in st.session_state or 'date_logged' not in st.session_s
         {"bit_id": "BIT-002", "material": "Mild Steel (MS)", "grade": "MS Commercial", "thickness": 1.5, "length": 1000, "width": 500, "weight_kg": 5.89, "status": "Available", "date_logged": "19-May-2026"},
     ])
 
-# Global database reset button
-if st.sidebar.button("🗑️ Reset Application Database"):
-    st.session_state.full_sheets = pd.DataFrame(columns=["sheet_id", "material", "grade", "thickness", "length", "width", "quantity", "unit_weight_kg"])
-    st.session_state.bits_inventory = pd.DataFrame(columns=["bit_id", "material", "grade", "thickness", "length", "width", "weight_kg", "status", "date_logged"])
-    st.rerun()
-
 # Sync active state handles
 df_sheets = st.session_state.full_sheets
 df_bits = st.session_state.bits_inventory
@@ -112,8 +106,6 @@ with tab1:
         s_col2.metric("Total Weight", f"{round(df_sheets['total_weight_kg'].sum(), 2)} Kg")
         s_col3.metric("Stock Valuation", f"₹{df_sheets['total_value_inr'].sum():,.2f}")
         st.dataframe(df_sheets[['sheet_id', 'material', 'grade', 'thickness', 'length', 'width', 'quantity', 'unit_weight_kg', 'total_weight_kg', 'total_value_inr']], use_container_width=True)
-    else:
-        st.info("Full sheet inventory register is currently empty.")
     
     st.markdown("---")
     fs_col1, fs_col2 = st.columns([1, 1.3])
@@ -196,8 +188,6 @@ with tab2:
         b_col2.metric("Scrap Tonnage Weight", f"{round(df_bits['weight_kg'].sum(), 2)} Kg")
         b_col3.metric("Tied Scrap Capital", f"₹{df_bits['est_value_inr'].sum():,.2f}")
         st.dataframe(df_bits[['bit_id', 'material', 'grade', 'thickness', 'length', 'width', 'weight_kg', 'est_value_inr', 'status', 'date_logged']], use_container_width=True)
-    else:
-        st.info("No tracked off-cut fragments available in current warehouse session logs.")
     
     st.markdown("---")
     bc1, bc2 = st.columns([1, 1.3])
@@ -251,59 +241,11 @@ with tab2:
             else:
                 st.error("❌ No matching scrap sizes found matching that specific material profile.")
 
-    st.markdown("---")
-    st.subheader("🛠️ Quick Off-Cut Actions Panel")
-    if df_bits.empty:
-        st.write("No off-cuts available in your database.")
-    else:
-        for index, row in df_bits.iterrows():
-            with st.container():
-                m1, m2, m3, m4 = st.columns([2, 1.5, 2.5, 1.5])
-                with m1:
-                    st.markdown(f"**{row['bit_id']}** ({row['grade']})")
-                    st.caption(f"🔧 {row['material']} | Tk: {row['thickness']}mm \n\n Logged: {row['date_logged']}")
-                    # FEATURE 3: BARCODE ID LOG PRINT LABELS
-                    st.markdown(f'''<div style="background-color:white; border:1px solid #111; padding:3px; width:fit-content; margin-top:5px;"><div style="letter-spacing:2px; background:repeating-linear-gradient(90deg, #000, #000 2px, #fff 2px, #fff 4px); width:90px; height:20px;"></div><span style="font-size:9px; color:black; font-family:monospace;">*{row['bit_id']}*</span></div>''', unsafe_allow_html=True)
-                    
-                    new_status = st.selectbox("Status", ["Available", "Reserved"], index=["Available", "Reserved"].index(row['status']), key=f"stat_{row['bit_id']}")
-                    if new_status != row['status']:
-                        st.session_state.bits_inventory.at[index, 'status'] = new_status
-                        st.rerun()
-                with m2:
-                    st.markdown(f"📏 **{int(row['length'])} x {int(row['width'])} mm**")
-                    st.caption(f"⚖️ {row['weight_kg']} kg | Value: ₹{row['est_value_inr']}")
-                with m3:
-                    v_w, v_l = max(int(row['width'] / 6), 20), max(int(row['length'] / 6), 40)
-                    st.markdown(f'<div style="width:{v_l}px; height:{v_w}px; background-color:#dcdcdc; border:2px solid #a9a9a9; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:bold; color:#333333; margin-bottom:12px;">{int(row['length'])}x{int(row['width'])}</div>', unsafe_allow_html=True)
-                    el_col, ew_col = st.columns(2)
-                    with el_col: edit_len = st.number_input("Len", min_value=0, max_value=int(row['length']), value=int(row['length']), key=f"len_{row['bit_id']}", step=10, label_visibility="collapsed")
-                    with ew_col: edit_wid = st.number_input("Wid", min_value=0, max_value=int(row['width']), value=int(row['width']), key=f"wid_{row['bit_id']}", step=10, label_visibility="collapsed")
-                with m4:
-                    st.markdown("<div style='height:25px;'></div>", unsafe_allow_html=True)
-                    b1, b2 = st.columns(2)
-                    with b1:
-                        if edit_len < row['length'] or edit_wid < row['width']:
-                            if st.button("💾", key=f"save_{row['bit_id']}"):
-                                if edit_len == 0 or edit_wid == 0:
-                                    st.session_state.bits_inventory = st.session_state.bits_inventory.drop(index).reset_index(drop=True)
-                                else:
-                                    st.session_state.bits_inventory.at[index, 'length'] = edit_len
-                                    st.session_state.bits_inventory.at[index, 'width'] = edit_wid
-                                    st.session_state.bits_inventory.at[index, 'weight_kg'] = calculate_sheet_weight(edit_len, edit_wid, row['thickness'], row['material'])
-                                st.rerun()
-                        else: st.button("💾", key=f"sv_dis_{row['bit_id']}", disabled=True)
-                    with b2:
-                        if st.button("🗑️", key=f"del_{row['bit_id']}"):
-                            st.session_state.bits_inventory = st.session_state.bits_inventory.drop(index).reset_index(drop=True)
-                            st.rerun()
-                st.markdown("<hr style='margin:0.4rem 0; opacity:0.15;'>", unsafe_allow_html=True)
-
 # ==========================================
-# TAB 3: UNIVERSAL PROFILE CALCULATOR (Expanded)
+# TAB 3: UNIVERSAL PROFILE CALCULATOR (Updated)
 # ==========================================
 with tab3:
     st.subheader("📐 Universal Section Weight Estimation Hub")
-    
     p_col1, p_col2, p_col3 = st.columns(3)
     
     with p_col1:
@@ -311,14 +253,19 @@ with tab3:
         with st.container(border=True):
             rod_mat = st.selectbox("Select Rod Metal", list(DENSITIES.keys()), key="rod_m")
             rod_dia = st.number_input("Outer Diameter (mm)", min_value=1.0, value=25.0, step=1.0)
-            rod_len = st.number_input("Length (mm)", min_value=1.0, value=1000.0, step=100.0, key="rod_l")
+            rod_len = st.number_input("Length Per Piece (mm)", min_value=1.0, value=1000.0, step=100.0, key="rod_l")
             
-            calculated_rod_w = calculate_rod_weight(rod_dia, rod_len, rod_mat)
-            rod_cost = round(calculated_rod_w * rates.get(rod_mat, 0.0), 2)
-            st.metric("⚖️ Weight", f"{calculated_rod_w} Kg")
-            st.metric("💰 Material Cost", f"₹{rod_cost:,.2f}")
+            # ITEM COUNT UPGRADE
+            rod_qty = st.number_input("Number of Items / Pieces", min_value=1, value=1, step=1, key="rod_q")
             
-            rod_string = f"📐 *SOLID ROUND ROD QUOTE*\n• Metal: {rod_mat}\n• Size: ⌀{rod_dia}mm x {int(rod_len)}mm\n• Weight: {calculated_rod_w} Kg\n• Value: ₹{rod_cost}"
+            single_rod_w = calculate_rod_weight(rod_dia, rod_len, rod_mat)
+            total_rod_w = round(single_rod_w * rod_qty, 2)
+            rod_cost = round(total_rod_w * rates.get(rod_mat, 0.0), 2)
+            
+            st.metric("⚖️ Total Weight", f"{total_rod_w} Kg", help=f"{single_rod_w} kg per item")
+            st.metric("💰 Total Material Cost", f"₹{rod_cost:,.2f}")
+            
+            rod_string = f"📐 *SOLID ROUND ROD QUOTE*\n• Metal: {rod_mat}\n• Size: ⌀{rod_dia}mm x {int(rod_len)}mm\n• Number of Items: {rod_qty}\n• Total Weight: {total_rod_w} Kg\n• Value: ₹{rod_cost}"
             st.code(rod_string, language="markdown")
 
     with p_col2:
@@ -327,30 +274,39 @@ with tab3:
             pipe_mat = st.selectbox("Select Pipe Metal", list(DENSITIES.keys()), key="pipe_m")
             pipe_dia = st.number_input("Outer Diameter (OD) (mm)", min_value=1.0, value=50.0, step=1.0)
             pipe_thick = st.number_input("Wall Thickness (mm)", min_value=0.5, value=3.0, step=0.5, key="pipe_t")
-            pipe_len = st.number_input("Length (mm)", min_value=1.0, value=1000.0, step=100.0, key="pipe_l")
+            pipe_len = st.number_input("Length Per Piece (mm)", min_value=1.0, value=1000.0, step=100.0, key="pipe_l")
             
-            calculated_pipe_w = calculate_pipe_weight(pipe_dia, pipe_thick, pipe_len, pipe_mat)
-            pipe_cost = round(calculated_pipe_w * rates.get(pipe_mat, 0.0), 2)
-            st.metric("⚖️ Weight", f"{calculated_pipe_w} Kg")
-            st.metric("💰 Material Cost", f"₹{pipe_cost:,.2f}")
+            # ITEM COUNT UPGRADE
+            pipe_qty = st.number_input("Number of Items / Pieces", min_value=1, value=1, step=1, key="pipe_q")
             
-            pipe_string = f"📐 *HOLLOW PIPE QUOTE*\n• Metal: {pipe_mat}\n• Size: OD ⌀{pipe_dia}mm x Thick {pipe_thick}mm\n• Length: {int(pipe_len)}mm\n• Weight: {calculated_pipe_w} Kg\n• Value: ₹{pipe_cost}"
+            single_pipe_w = calculate_pipe_weight(pipe_dia, pipe_thick, pipe_len, pipe_mat)
+            total_pipe_w = round(single_pipe_w * pipe_qty, 2)
+            pipe_cost = round(total_pipe_w * rates.get(pipe_mat, 0.0), 2)
+            
+            st.metric("⚖️ Total Weight", f"{total_pipe_w} Kg", help=f"{single_pipe_w} kg per item")
+            st.metric("💰 Total Material Cost", f"₹{pipe_cost:,.2f}")
+            
+            pipe_string = f"📐 *HOLLOW PIPE QUOTE*\n• Metal: {pipe_mat}\n• Size: OD ⌀{pipe_dia}mm x Thick {pipe_thick}mm x {int(pipe_len)}mm\n• Number of Items: {pipe_qty}\n• Total Weight: {total_pipe_w} Kg\n• Value: ₹{pipe_cost}"
             st.code(pipe_string, language="markdown")
 
     with p_col3:
-        # FEATURE 1: SQUARE & RECTANGULAR HOLLOW CALCULATOR COLUMN
         st.markdown("### 🔲 Square / Box Section")
         with st.container(border=True):
             box_mat = st.selectbox("Select Box Metal", list(DENSITIES.keys()), key="box_m")
             box_h = st.number_input("Section Height (mm)", min_value=1.0, value=40.0, step=1.0)
             box_w = st.number_input("Section Width (mm)", min_value=1.0, value=40.0, step=1.0)
             box_t = st.number_input("Wall Thickness (mm)", min_value=0.5, value=2.5, step=0.5, key="box_t")
-            box_l = st.number_input("Length (mm)", min_value=1.0, value=1000.0, step=100.0, key="box_l")
+            box_l = st.number_input("Length Per Piece (mm)", min_value=1.0, value=1000.0, step=100.0, key="box_l")
             
-            calculated_box_w = calculate_box_weight(box_h, box_w, box_t, box_l, box_mat)
-            box_cost = round(calculated_box_w * rates.get(box_mat, 0.0), 2)
-            st.metric("⚖️ Weight", f"{calculated_box_w} Kg")
-            st.metric("💰 Material Cost", f"₹{box_cost:,.2f}")
+            # ITEM COUNT UPGRADE
+            box_qty = st.number_input("Number of Items / Pieces", min_value=1, value=1, step=1, key="box_q")
             
-            box_string = f"📐 *BOX SECTION QUOTE*\n• Metal: {box_mat}\n• Size: {int(box_h)}x{int(box_w)}mm x Thick {box_t}mm\n• Length: {int(box_l)}mm\n• Weight: {calculated_box_w} Kg\n• Value: ₹{box_cost}"
+            single_box_w = calculate_box_weight(box_h, box_w, box_t, box_l, box_mat)
+            total_box_w = round(single_box_w * box_qty, 2)
+            box_cost = round(total_box_w * rates.get(box_mat, 0.0), 2)
+            
+            st.metric("⚖️ Total Weight", f"{total_box_w} Kg", help=f"{single_box_w} kg per item")
+            st.metric("💰 Total Material Cost", f"₹{box_cost:,.2f}")
+            
+            box_string = f"📐 *BOX SECTION QUOTE*\n• Metal: {box_mat}\n• Size: {int(box_h)}x{int(box_w)}mm x Thick {box_t}mm x {int(box_l)}mm\n• Number of Items: {box_qty}\n• Total Weight: {total_box_w} Kg\n• Value: ₹{box_cost}"
             st.code(box_string, language="markdown")
